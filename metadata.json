@@ -1,0 +1,6 @@
+{
+  "name": "Ebook Segurança Colaborativa",
+  "description": "Landing page de alta conversão para o Ebook Guia Estratégico da Segurança Colaborativa, voltado para integradores de segurança eletrônica.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
