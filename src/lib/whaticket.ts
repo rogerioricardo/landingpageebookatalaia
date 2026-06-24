@@ -91,7 +91,57 @@ export function formatMessage(template: string, lead: Lead): string {
 }
 
 /**
+ * Sends a message directly from the browser to the Whaticket API
+ * This is used as a fallback when the Node.js server proxy is not available (e.g., static hosting)
+ */
+async function sendWhaticketDirectly(
+  normalizedPhone: string,
+  messageText: string,
+  config: WhaticketConfig
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const payload: any = {
+      number: normalizedPhone,
+      body: messageText,
+    };
+
+    if (config.whatsappId) {
+      const idNum = parseInt(config.whatsappId, 10);
+      payload.whatsappId = isNaN(idNum) ? config.whatsappId : idNum;
+    }
+
+    const response = await fetch(config.apiUrl.trim(), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${config.token.trim()}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const responseText = await response.text();
+
+    if (!response.ok) {
+      console.error("Erro na requisição direta ao Whaticket:", response.status, responseText);
+      return {
+        success: false,
+        error: `O Whaticket respondeu com erro direto: ${responseText || response.statusText}`
+      };
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    console.error("Falha na conexão direta com o Whaticket (CORS ou rede):", err);
+    return {
+      success: false,
+      error: `Erro de conexão direta (CORS/Rede): ${err.message || "Por favor, verifique se a URL da API está correta e configurada para aceitar requisições de outros domínios."}`
+    };
+  }
+}
+
+/**
  * Sends a message to WhatsApp via our server-side API proxy to bypass browser CORS constraints.
+ * If the proxy route is not available (e.g. running on static hosting), it falls back to a direct client-side call.
  */
 export async function sendWhaticketMessage(
   toPhone: string,
@@ -124,6 +174,11 @@ export async function sendWhaticketMessage(
       }),
     });
 
+    if (response.status === 404) {
+      console.warn("Rota de proxy '/api/whatsapp/send' não encontrada (hospedagem estática). Tentando envio direto do navegador...");
+      return await sendWhaticketDirectly(normalizedPhone, messageText, config);
+    }
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       const errorMsg = errorData.error || `Status ${response.status}`;
@@ -138,8 +193,8 @@ export async function sendWhaticketMessage(
     console.log("Mensagem enviada com sucesso via proxy Whaticket:", responseData);
     return { success: true };
   } catch (err: any) {
-    console.error("Falha ao comunicar com o servidor proxy:", err);
-    return { success: false, error: err.message || "Erro de conexão com o servidor de envio." };
+    console.warn("Falha ao comunicar com o servidor proxy (hospedagem estática ou offline). Tentando envio direto do navegador...", err);
+    return await sendWhaticketDirectly(normalizedPhone, messageText, config);
   }
 }
 

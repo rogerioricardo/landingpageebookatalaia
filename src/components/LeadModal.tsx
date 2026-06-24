@@ -87,8 +87,8 @@ export default function LeadModal({ isOpen, onClose, onLeadCapture }: LeadModalP
 
   const triggerDownload = () => {
     const link = document.createElement("a");
-    link.href = "/Guia_Estrategico_Seguranca_Colaborativa.txt";
-    link.download = "Guia_Estrategico_Seguranca_Colaborativa.txt";
+    link.href = "/Guia_Estrategico_Seguranca_Colaborativa.pdf";
+    link.download = "Guia_Estrategico_Seguranca_Colaborativa.pdf";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -294,7 +294,7 @@ export default function LeadModal({ isOpen, onClose, onLeadCapture }: LeadModalP
                     onClick={triggerDownload}
                     className="w-full bg-green-600 hover:bg-green-700 text-black font-extrabold py-3 px-4 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md"
                   >
-                    <Download size={18} /> Baixar Ebook Grátis (TXT/Guia)
+                    <Download size={18} /> Baixar Ebook Grátis (PDF)
                   </button>
                   
                   <p className="text-[11px] text-zinc-500">

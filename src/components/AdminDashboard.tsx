@@ -762,7 +762,7 @@ export default function AdminDashboard({ onClose }: AdminDashboardProps) {
                   <form onSubmit={handleSaveSystemConfig} className="bg-white border border-green-200/50 p-6 rounded-2xl space-y-4 shadow-sm">
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold text-zinc-600 uppercase tracking-wider block">
-                        Versão Atual do Ebook (TXT / Guia Estratégico)
+                        Versão Atual do Ebook (PDF / Guia Estratégico)
                       </label>
                       <input
                         type="text"
