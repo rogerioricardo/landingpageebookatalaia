@@ -8,6 +8,153 @@ import { Lead } from "../types";
 import { fetchLeadsFromSupabase, deleteLeadFromSupabase, supabase, authenticateAdmin, seedAdminUser } from "../lib/supabase";
 import { getWhaticketConfig, saveWhaticketConfig, sendWhaticketMessage, WhaticketConfig } from "../lib/whaticket";
 
+const SUPABASE_SETUP_SQL = `-- 1. Crie a tabela de leads
+create table if not exists leads (
+  id text primary key,
+  name text not null,
+  email text not null,
+  phone text not null,
+  company_name text not null,
+  client_count_estimate text not null,
+  created_at timestamp with time zone default now()
+);
+
+-- Ativar segurança de nível de linha (RLS) para leads
+alter table leads enable row level security;
+
+-- Excluir políticas existentes se já existirem (para evitar erros ao rodar novamente)
+drop policy if exists "Permitir inserções públicas" on leads;
+drop policy if exists "Permitir leitura pública" on leads;
+drop policy if exists "Permitir exclusão pública" on leads;
+
+-- Permitir que qualquer pessoa insira novos leads
+create policy "Permitir inserções públicas" on leads
+  for insert with check (true);
+
+-- Permitir leitura pública dos leads
+create policy "Permitir leitura pública" on leads
+  for select using (true);
+
+-- Permitir exclusão pública de leads
+create policy "Permitir exclusão pública" on leads
+  for delete using (true);
+
+-- 2. Crie a tabela de administradores
+create table if not exists admins (
+  id uuid default gen_random_uuid() primary key,
+  username text unique not null,
+  password text not null,
+  email text,
+  created_at timestamp with time zone default now()
+);
+
+-- Ativar RLS para admins
+alter table admins enable row level security;
+
+-- Excluir políticas existentes se já existirem
+drop policy if exists "Permitir leitura de admins" on admins;
+drop policy if exists "Permitir inserção de admins" on admins;
+
+-- Permitir leitura de administradores
+create policy "Permitir leitura de admins" on admins
+  for select using (true);
+
+-- Permitir inserção de administradores
+create policy "Permitir inserção de admins" on admins
+  for insert with check (true);
+
+-- 3. Cadastre o usuário administrador solicitado (admin e admim)
+insert into admins (username, password, email)
+values 
+  ('admin', '02011975', 'rogerioricardoluiz@gmail.com'),
+  ('admim', '02011975', 'rogerioricardoluiz@gmail.com')
+on conflict (username) do update 
+set password = excluded.password,
+    email = excluded.email;
+
+-- 4. Crie a tabela de fila de envio de WhatsApp (para contornar CORS na hospedagem estática)
+create table if not exists whatsapp_queue (
+  id uuid default gen_random_uuid() primary key,
+  api_url text not null,
+  token text not null,
+  number text not null,
+  body text not null,
+  whatsapp_id text,
+  status text default 'pending', -- pending, sent, error
+  error_message text,
+  created_at timestamp with time zone default now()
+);
+
+-- Ativar RLS para whatsapp_queue
+alter table whatsapp_queue enable row level security;
+
+-- Excluir políticas existentes se já existirem
+drop policy if exists "Permitir inserções públicas em whatsapp_queue" on whatsapp_queue;
+drop policy if exists "Permitir leitura pública em whatsapp_queue" on whatsapp_queue;
+
+-- Permitir inserção pública para envio de mensagens
+create policy "Permitir inserções públicas em whatsapp_queue" on whatsapp_queue
+  for insert with check (true);
+
+-- Permitir leitura de whatsapp_queue para administração
+create policy "Permitir leitura pública em whatsapp_queue" on whatsapp_queue
+  for select using (true);
+
+-- 5. Função de trigger do PostgreSQL para envio automático via Whaticket usando pg_net
+create or replace function send_whaticket_message_trigger()
+returns trigger as $$
+declare
+  payload_json text;
+begin
+  -- Habilitar a extensão pg_net se não estiver habilitada
+  create extension if not exists pg_net with schema public;
+
+  -- Formatar o payload do Whaticket
+  if new.whatsapp_id is not null and new.whatsapp_id <> '' then
+    payload_json := json_build_object(
+      'number', new.number,
+      'body', new.body,
+      'whatsappId', new.whatsapp_id::integer
+    )::text;
+  else
+    payload_json := json_build_object(
+      'number', new.number,
+      'body', new.body
+    )::text;
+  end if;
+
+  -- Chamar o Whaticket diretamente usando pg_net (assíncrono)
+  perform net.http_post(
+    url := new.api_url,
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'Authorization', 'Bearer ' || new.token
+    ),
+    body := payload_json::jsonb
+  );
+
+  -- Atualizar status para enviado
+  update whatsapp_queue 
+  set status = 'sent' 
+  where id = new.id;
+
+  return new;
+exception when others then
+  -- Em caso de erro, salvar o erro na tabela
+  update whatsapp_queue 
+  set status = 'error', 
+      error_message = SQLERRM 
+  where id = new.id;
+  return new;
+end;
+$$ language plpgsql security definer;
+
+-- Associar a trigger à tabela whatsapp_queue
+drop trigger if exists on_whatsapp_queue_insert on whatsapp_queue;
+create trigger on_whatsapp_queue_insert
+  after insert on whatsapp_queue
+  for each row
+  execute function send_whaticket_message_trigger();`;
 
 interface AdminDashboardProps {
   onClose: () => void;
@@ -897,8 +1044,7 @@ export default function AdminDashboard({ onClose }: AdminDashboardProps) {
                       </h4>
                       <button
                         onClick={() => {
-                          const sql = `-- 1. Crie a tabela de leads\ncreate table if not exists leads (\n  id text primary key,\n  name text not null,\n  email text not null,\n  phone text not null,\n  company_name text not null,\n  client_count_estimate text not null,\n  created_at timestamp with time zone default now()\n);\n\n-- Ativar segurança de nível de linha (RLS) para leads\nalter table leads enable row level security;\n\n-- Permitir que qualquer pessoa insira novos leads (público)\ncreate policy "Permitir inserções públicas" on leads\n  for insert with check (true);\n\n-- Permitir leitura pública dos leads\ncreate policy "Permitir leitura pública" on leads\n  for select using (true);\n\n-- Permitir exclusão pública de leads\ncreate policy "Permitir exclusão pública" on leads\n  for delete using (true);\n\n-- 2. Crie a tabela de administradores\ncreate table if not exists admins (\n  id uuid default gen_random_uuid() primary key,\n  username text unique not null,\n  password text not null,\n  email text,\n  created_at timestamp with time zone default now()\n);\n\n-- Ativar RLS para admins\nalter table admins enable row level security;\n\n-- Permitir leitura de administradores\ncreate policy "Permitir leitura de admins" on admins\n  for select using (true);\n\n-- Permitir inserção de administradores\ncreate policy "Permitir inserção de admins" on admins\n  for insert with check (true);\n\n-- 3. Cadastre o usuário administrador solicitado (admin e admim)\ninsert into admins (username, password, email)\nvalues \n  ('admin', '02011975', 'rogerioricardoluiz@gmail.com'),\n  ('admim', '02011975', 'rogerioricardoluiz@gmail.com')\non conflict (username) do update \nset password = excluded.password,\n    email = excluded.email;`;
-                          navigator.clipboard.writeText(sql);
+                          navigator.clipboard.writeText(SUPABASE_SETUP_SQL);
                           setCopiedSql(true);
                           setTimeout(() => setCopiedSql(false), 2000);
                         }}
@@ -909,60 +1055,7 @@ export default function AdminDashboard({ onClose }: AdminDashboardProps) {
                     </div>
 
                     <pre className="bg-zinc-900 text-zinc-200 p-4 rounded-xl text-[11px] font-mono overflow-x-auto leading-relaxed border border-zinc-800">
-{`-- 1. Crie a tabela de leads
-create table if not exists leads (
-  id text primary key,
-  name text not null,
-  email text not null,
-  phone text not null,
-  company_name text not null,
-  client_count_estimate text not null,
-  created_at timestamp with time zone default now()
-);
-
--- Ativar segurança de nível de linha (RLS) para leads
-alter table leads enable row level security;
-
--- Permitir que qualquer pessoa insira novos leads
-create policy "Permitir inserções públicas" on leads
-  for insert with check (true);
-
--- Permitir leitura pública dos leads (para administração)
-create policy "Permitir leitura pública" on leads
-  for select using (true);
-
--- Permitir exclusão pública de leads
-create policy "Permitir exclusão pública" on leads
-  for delete using (true);
-
--- 2. Crie a tabela de administradores
-create table if not exists admins (
-  id uuid default gen_random_uuid() primary key,
-  username text unique not null,
-  password text not null,
-  email text,
-  created_at timestamp with time zone default now()
-);
-
--- Ativar RLS para admins
-alter table admins enable row level security;
-
--- Permitir leitura de administradores
-create policy "Permitir leitura de admins" on admins
-  for select using (true);
-
--- Permitir inserção de administradores
-create policy "Permitir inserção de admins" on admins
-  for insert with check (true);
-
--- 3. Cadastre o usuário administrador solicitado (admin e admim)
-insert into admins (username, password, email)
-values 
-  ('admin', '02011975', 'rogerioricardoluiz@gmail.com'),
-  ('admim', '02011975', 'rogerioricardoluiz@gmail.com')
-on conflict (username) do update 
-set password = excluded.password,
-    email = excluded.email;`}
+{SUPABASE_SETUP_SQL}
                     </pre>
 
                     <div className="text-zinc-600 text-xs leading-relaxed space-y-1 bg-green-50/40 p-4 rounded-xl border border-green-100">

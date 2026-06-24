@@ -175,37 +175,40 @@ async function sendWhaticketDirectly(
 }
 
 /**
- * Sends a message via Supabase Edge Function to completely bypass browser CORS constraints
+ * Sends a message via Supabase WhatsApp Queue to completely bypass browser CORS constraints
  * when running in a static web hosting environment where Node.js server.ts is not available.
+ * It inserts a row into the 'whatsapp_queue' table, which triggers a PostgreSQL trigger
+ * that sends the HTTP POST request to Whaticket directly from Supabase's cloud servers.
  */
-async function sendWhaticketViaSupabaseFunction(
+async function sendWhaticketViaSupabaseQueue(
   normalizedPhone: string,
   messageText: string,
   config: WhaticketConfig
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    console.log(`[SUPABASE EDGE] Tentando enviar WhatsApp via Supabase Edge Function 'send-whatsapp'...`);
+    console.log(`[SUPABASE QUEUE] Inserindo mensagem na fila do Supabase 'whatsapp_queue'...`);
     
-    // We invoke a custom Supabase Edge function named 'send-whatsapp' if configured on their Supabase dashboard.
-    // If it fails or is not found, we fallback to direct browser call.
-    const { data, error } = await supabase.functions.invoke("send-whatsapp", {
-      body: {
-        apiUrl: normalizeApiUrl(config.apiUrl),
-        token: config.token.trim(),
-        number: normalizedPhone,
-        body: messageText,
-        whatsappId: config.whatsappId
-      }
-    });
+    const { error } = await supabase
+      .from("whatsapp_queue")
+      .insert([
+        {
+          api_url: normalizeApiUrl(config.apiUrl),
+          token: config.token.trim(),
+          number: normalizedPhone,
+          body: messageText,
+          whatsapp_id: config.whatsappId || null,
+          status: "pending"
+        }
+      ]);
 
     if (error) {
       throw error;
     }
 
-    console.log("Mensagem enviada com sucesso via Supabase Edge Function!", data);
+    console.log("Mensagem inserida com sucesso na fila do Supabase! O trigger do banco cuidará do envio.");
     return { success: true };
   } catch (err: any) {
-    console.warn("Supabase Edge Function 'send-whatsapp' falhou ou não está configurada. Usando envio direto como último recurso.", err);
+    console.warn("Fila do Supabase 'whatsapp_queue' falhou ou não está criada no banco de dados. Usando envio direto como último recurso.", err);
     return await sendWhaticketDirectly(normalizedPhone, messageText, config);
   }
 }
@@ -252,8 +255,8 @@ export async function sendWhaticketMessage(
     });
 
     if (response.status === 404) {
-      console.warn(`Rota de proxy '${proxyUrl}' retornou 404 (provável hospedagem estática). Tentando envio via Supabase Edge Function...`);
-      return await sendWhaticketViaSupabaseFunction(normalizedPhone, messageText, config);
+      console.warn(`Rota de proxy '${proxyUrl}' retornou 404 (provável hospedagem estática). Tentando envio via Fila do Supabase...`);
+      return await sendWhaticketViaSupabaseQueue(normalizedPhone, messageText, config);
     }
 
     if (!response.ok) {
@@ -282,8 +285,8 @@ export async function sendWhaticketMessage(
     console.log("Mensagem enviada com sucesso via proxy Whaticket:", responseData);
     return { success: true };
   } catch (err: any) {
-    console.warn("Falha ao comunicar com o servidor proxy (hospedagem estática ou offline). Tentando via Supabase Edge Function...", err);
-    return await sendWhaticketViaSupabaseFunction(normalizedPhone, messageText, config);
+    console.warn("Falha ao comunicar com o servidor proxy (hospedagem estática ou offline). Tentando via Fila do Supabase...", err);
+    return await sendWhaticketViaSupabaseQueue(normalizedPhone, messageText, config);
   }
 }
 
