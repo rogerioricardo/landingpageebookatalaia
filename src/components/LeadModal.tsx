@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { X, Mail, User, Phone, Briefcase, ChevronRight, CheckCircle2, Download, ExternalLink, RefreshCw } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { jsPDF } from "jspdf";
 import { Lead } from "../types";
 import { saveLeadToSupabase } from "../lib/supabase";
 import { triggerLeadWhatsAppNotification } from "../lib/whaticket";
@@ -86,12 +87,233 @@ export default function LeadModal({ isOpen, onClose, onLeadCapture }: LeadModalP
   };
 
   const triggerDownload = () => {
-    const link = document.createElement("a");
-    link.href = "/Guia_Estrategico_Seguranca_Colaborativa.pdf";
-    link.download = "Guia_Estrategico_Seguranca_Colaborativa.pdf";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    try {
+      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const margin = 20;
+      const pageWidth = 210;
+      const contentWidth = pageWidth - (2 * margin);
+      let y = 20;
+
+      const drawHeader = () => {
+        // Top colored accent bar
+        doc.setFillColor(22, 163, 74); // Green 600
+        doc.rect(0, 0, pageWidth, 5, "F");
+      };
+
+      const drawFooter = (pageNumber: number) => {
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        doc.setTextColor(120, 120, 120);
+        doc.text("Atalaia Segurança Colaborativa — atalaia.seg.br", margin, 285);
+        doc.text(`Página ${pageNumber}`, pageWidth - margin - 15, 285);
+      };
+
+      const checkPageBreak = (spaceNeeded: number) => {
+        if (y + spaceNeeded > 265) {
+          const pageNum = doc.getNumberOfPages();
+          drawFooter(pageNum);
+          doc.addPage();
+          drawHeader();
+          y = 25;
+        }
+      };
+
+      // --- FIRST PAGE ---
+      drawHeader();
+
+      // Logo / Brand Icon
+      doc.setFillColor(240, 253, 244); // Light green background for icon
+      doc.roundedRect(margin, y, 14, 14, 3, 3, "F");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(14);
+      doc.setTextColor(22, 163, 74); // Green 600
+      doc.text("A", margin + 5, y + 10);
+
+      doc.setFontSize(10);
+      doc.setTextColor(100, 100, 100);
+      doc.text("ATALAIA", margin + 18, y + 9);
+
+      y += 24;
+
+      // Title
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(22);
+      doc.setTextColor(24, 24, 27); // Zinc 900
+      doc.text("GUIA ESTRATÉGICO", margin, y);
+      y += 8;
+      doc.text("SEGURANÇA COLABORATIVA", margin, y);
+      y += 10;
+
+      // Subtitle
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(11);
+      doc.setTextColor(82, 82, 91); // Zinc 600
+      const subTitleText = "Como integradores de segurança eletrônica podem construir uma nova e altamente lucrativa fonte de receita recorrente mensal (MRR).";
+      const splitSubtitle = doc.splitTextToSize(subTitleText, contentWidth);
+      doc.text(splitSubtitle, margin, y);
+      y += (splitSubtitle.length * 5) + 5;
+
+      // Personalized Box
+      doc.setFillColor(244, 244, 245); // Zinc 100
+      doc.setDrawColor(228, 228, 231); // Zinc 200
+      doc.roundedRect(margin, y, contentWidth, 32, 2, 2, "FD");
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.setTextColor(22, 163, 74); // Green 600
+      doc.text("GUIA EXCLUSIVO E PERSONALIZADO", margin + 5, y + 6);
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(63, 63, 70); // Zinc 700
+      doc.text(`Preparado para: `, margin + 5, y + 13);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(24, 24, 27);
+      doc.text(`${name || "Integrador Parceiro"}`, margin + 30, y + 13);
+
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(63, 63, 70);
+      doc.text(`Empresa: `, margin + 5, y + 19);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(24, 24, 27);
+      doc.text(`${companyName || "Sistemas de Segurança"}`, margin + 30, y + 19);
+
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(63, 63, 70);
+      doc.text(`Expansão estimada: `, margin + 5, y + 25);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(22, 163, 74);
+      doc.text(`${clientCount || "Projetos de Recorrência"}`, margin + 36, y + 25);
+
+      const todayStr = new Date().toLocaleDateString("pt-BR");
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(113, 113, 122); // Zinc 500
+      doc.text(`Emissão: ${todayStr}`, margin + contentWidth - 32, y + 6);
+
+      y += 42;
+
+      // Introduction
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.setTextColor(39, 39, 42); // Zinc 800
+      const introText = "Este guia prático foi elaborado para integradores e profissionais de segurança eletrônica que buscam sair do ciclo estressante de vendas de projetos pontuais de hardware (câmeras, cabos e gravadores) e construir uma receita recorrente sólida, sustentável e de alta lucratividade através do modelo inovador de segurança colaborativa com a plataforma Atalaia.";
+      const splitIntro = doc.splitTextToSize(introText, contentWidth);
+      doc.text(splitIntro, margin, y);
+      y += (splitIntro.length * 5) + 12;
+
+      // Section 1
+      checkPageBreak(50);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(12);
+      doc.setTextColor(22, 163, 74); // Green 600
+      doc.text("PARTE 1: A EVOLUÇÃO E A REVOLUÇÃO DO MERCADO", margin, y);
+      y += 6;
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.setTextColor(39, 39, 42);
+      const part1Text = "A venda tradicional de câmeras e CFTV está sofrendo uma rápida comoditização. Os preços dos equipamentos caem a cada dia, a concorrência é acirrada e o cliente final foca apenas no menor preço de instalação. A solução definitiva para esse gargalo é a mudança de modelo mental e comercial: vender a segurança como um SERVIÇO (SaaS) e não como um produto único.\n\nAo conectar as câmeras de segurança a uma plataforma de nuvem compartilhada e inteligente, o integrador passa a comercializar ACESSO e PREVENÇÃO, cobrando mensalidades recorrentes dos moradores.";
+      const splitPart1 = doc.splitTextToSize(part1Text, contentWidth);
+      doc.text(splitPart1, margin, y);
+      y += (splitPart1.length * 5) + 12;
+
+      // Section 2
+      checkPageBreak(60);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(12);
+      doc.setTextColor(22, 163, 74); // Green 600
+      doc.text("PARTE 2: O CONCEITO DE SEGURANÇA COLABORATIVA", margin, y);
+      y += 6;
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.setTextColor(39, 39, 42);
+      const part2Text = "A segurança colaborativa baseia-se no princípio de que a união de uma comunidade aumenta a segurança de todos. Em vez de cada vizinho ter seu próprio sistema de CFTV isolado e sem utilidade coletiva:\n\n1. Uma ou mais câmeras estrategicamente posicionadas na rua gravam as imagens diretamente na nuvem.\n2. Todos os moradores daquela rua/quadra possuem acesso controlado ao aplicativo para visualizar as imagens em tempo real e acessar gravações dos últimos dias.\n3. Em caso de atitude suspeita, qualquer morador pode emitir um alerta comunitário em tempo real, mobilizando a vizinhança de forma imediata e preventiva.";
+      const splitPart2 = doc.splitTextToSize(part2Text, contentWidth);
+      doc.text(splitPart2, margin, y);
+      y += (splitPart2.length * 5) + 12;
+
+      // Section 3
+      checkPageBreak(75);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(12);
+      doc.setTextColor(22, 163, 74); // Green 600
+      doc.text("PARTE 3: O MODELO DE NEGÓCIOS DE RECORRÊNCIA (MRR)", margin, y);
+      y += 6;
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.setTextColor(39, 39, 42);
+      const part3Text1 = "No modelo colaborativo, a matemática financeira joga a favor do integrador parceiro:\n\n* Custo do Equipamento + Instalação: Pago uma única vez pelo cliente ou diluído.\n* Receita do Morador (Assinante): R$ 39,90 a R$ 79,90 mensais por morador ativo.\n* Divisão 50/50:\n  - 50% é a sua margem de lucro como Integrador parceiro (R$ 19,95 no plano mínimo por cliente).\n  - 50% é a taxa da licença Atalaia (responsável por toda infraestrutura em nuvem, aplicativo, processamento e suporte técnico).";
+      const splitPart3_1 = doc.splitTextToSize(part3Text1, contentWidth);
+      doc.text(splitPart3_1, margin, y);
+      y += (splitPart3_1.length * 5) + 8;
+
+      checkPageBreak(40);
+      // Example Callout box in Section 3
+      doc.setFillColor(240, 253, 244); // light green
+      doc.roundedRect(margin, y, contentWidth, 24, 1.5, 1.5, "F");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.setTextColor(21, 128, 61); // dark green
+      doc.text("EXEMPLO DE ESCALA E GANHO FINANCEIRO:", margin + 5, y + 6);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9.5);
+      doc.setTextColor(21, 128, 61);
+      const exampleText = "Ao instalar 10 câmeras em uma rua, com média de 15 assinantes por câmera (150 assinantes):\n* No plano de R$ 39,90, o faturamento total da rua é de R$ 5.985,00 mensais.\n* Sua recorrência líquida (50%): R$ 2.992,50 recorrentes TODOS OS MESES por apenas uma rua!";
+      const splitExample = doc.splitTextToSize(exampleText, contentWidth - 10);
+      doc.text(splitExample, margin + 5, y + 12);
+      y += 32;
+
+      // Section 4
+      checkPageBreak(75);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(12);
+      doc.setTextColor(22, 163, 74); // Green 600
+      doc.text("PARTE 4: PLANO DE AÇÃO PARA IMPLEMENTAÇÃO EM 4 PASSOS", margin, y);
+      y += 6;
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.setTextColor(39, 39, 42);
+      const part4Text = "PASSO 1: MAPEAMENTO DE REGIÃO\nEscolha bairros residenciais ativos, ruas sem saída ou pequenos comércios integrados.\n\nPASSO 2: REUNIÃO COM A VIZINHANÇA\nApresente a ideia de 'Rua Protegida'. Mostre que pagar R$ 39,90 por mês é infinitamente mais barato do que contratar segurança privada física ou comprar sistemas individuais caros.\n\nPASSO 3: INSTALAÇÃO E ATIVAÇÃO\nInstale câmeras IP de qualidade voltadas para a via pública e conecte-as ao sistema Atalaia.\n\nPASSO 4: EXPANSÃO DA REDE\nPeça indicações para os moradores da rua protegida. Rapidamente, as ruas vizinhas também vão querer implementar o mesmo cinturão de segurança.";
+      const splitPart4 = doc.splitTextToSize(part4Text, contentWidth);
+      doc.text(splitPart4, margin, y);
+      y += (splitPart4.length * 5) + 12;
+
+      // Contact section
+      checkPageBreak(45);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(12);
+      doc.setTextColor(22, 163, 74); // Green 600
+      doc.text("CONTATO E PARCERIA EXCLUSIVA", margin, y);
+      y += 6;
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.setTextColor(39, 39, 42);
+      const contactText = "Quer se tornar um integrador credenciado Atalaia e ter exclusividade de atuação na sua região? Entre em contato com nossa equipe comercial e receba todo o material de apoio, treinamentos técnicos e comerciais validados.\n\nE-mail: contato@atalaia.seg.br\nWebsite: atalaia.seg.br\n\nAtalaia Segurança Colaborativa — Desenvolvido para o crescimento de integradores.\nBy Alien Sistemas de Segurança Eletrônica";
+      const splitContact = doc.splitTextToSize(contactText, contentWidth);
+      doc.text(splitContact, margin, y);
+      y += (splitContact.length * 5) + 10;
+
+      // Draw final footer for the last page
+      const totalPages = doc.getNumberOfPages();
+      drawFooter(totalPages);
+
+      // Save the PDF
+      doc.save("Guia_Estrategico_Seguranca_Colaborativa.pdf");
+    } catch (error) {
+      console.error("Erro ao gerar PDF:", error);
+      // Fallback to text file in case of error
+      const link = document.createElement("a");
+      link.href = "/Guia_Estrategico_Seguranca_Colaborativa.txt";
+      link.download = "Guia_Estrategico_Seguranca_Colaborativa.txt";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
   };
 
   return (

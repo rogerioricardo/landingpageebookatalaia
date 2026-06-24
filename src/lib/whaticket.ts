@@ -1,4 +1,5 @@
 import { Lead } from "../types";
+import { supabase } from "./supabase";
 
 export interface WhaticketConfig {
   enabled: boolean;
@@ -79,6 +80,31 @@ export function normalizePhoneNumber(phone: string): string {
 }
 
 /**
+ * Normalizes the API URL to ensure it has a correct protocol (e.g., https://)
+ * and matches the current environment context.
+ */
+export function normalizeApiUrl(url: string): string {
+  let trimmed = (url || "").trim();
+  if (!trimmed) return "";
+
+  // If it doesn't start with http:// or https://, prepend https://
+  if (!/^https?:\/\//i.test(trimmed)) {
+    if (trimmed.startsWith("//")) {
+      trimmed = "https:" + trimmed;
+    } else {
+      trimmed = "https://" + trimmed;
+    }
+  }
+
+  // If we are in a secure HTTPS environment, upgrade http to https to avoid mixed-content blocks
+  if (typeof window !== "undefined" && window.location.protocol === "https:") {
+    trimmed = trimmed.replace(/^http:\/\//i, "https://");
+  }
+
+  return trimmed;
+}
+
+/**
  * Replaces placeholders in the message template with actual lead data
  */
 export function formatMessage(template: string, lead: Lead): string {
@@ -99,6 +125,7 @@ async function sendWhaticketDirectly(
   messageText: string,
   config: WhaticketConfig
 ): Promise<{ success: boolean; error?: string }> {
+  const normalizedUrl = normalizeApiUrl(config.apiUrl);
   try {
     const payload: any = {
       number: normalizedPhone,
@@ -110,7 +137,9 @@ async function sendWhaticketDirectly(
       payload.whatsappId = isNaN(idNum) ? config.whatsappId : idNum;
     }
 
-    const response = await fetch(config.apiUrl.trim(), {
+    console.log(`[DIRECT] Enviando WhatsApp direto para ${normalizedPhone} usando URL: ${normalizedUrl}`);
+
+    const response = await fetch(normalizedUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -122,7 +151,13 @@ async function sendWhaticketDirectly(
     const responseText = await response.text();
 
     if (!response.ok) {
-      console.error("Erro na requisição direta ao Whaticket:", response.status, responseText);
+      console.error("Erro na requisição direta ao Whaticket (Não-200 OK):", {
+        status: response.status,
+        statusText: response.statusText,
+        url: response.url,
+        headers: Array.from(response.headers.entries()),
+        body: responseText
+      });
       return {
         success: false,
         error: `O Whaticket respondeu com erro direto: ${responseText || response.statusText}`
@@ -134,8 +169,44 @@ async function sendWhaticketDirectly(
     console.error("Falha na conexão direta com o Whaticket (CORS ou rede):", err);
     return {
       success: false,
-      error: `Erro de conexão direta (CORS/Rede): ${err.message || "Por favor, verifique se a URL da API está correta e configurada para aceitar requisições de outros domínios."}`
+      error: `Erro de conexão direta (CORS/Rede) com a URL [${normalizedUrl}]: ${err.message || "Por favor, verifique se a URL da API está correta e configurada para aceitar requisições de outros domínios."}`
     };
+  }
+}
+
+/**
+ * Sends a message via Supabase Edge Function to completely bypass browser CORS constraints
+ * when running in a static web hosting environment where Node.js server.ts is not available.
+ */
+async function sendWhaticketViaSupabaseFunction(
+  normalizedPhone: string,
+  messageText: string,
+  config: WhaticketConfig
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    console.log(`[SUPABASE EDGE] Tentando enviar WhatsApp via Supabase Edge Function 'send-whatsapp'...`);
+    
+    // We invoke a custom Supabase Edge function named 'send-whatsapp' if configured on their Supabase dashboard.
+    // If it fails or is not found, we fallback to direct browser call.
+    const { data, error } = await supabase.functions.invoke("send-whatsapp", {
+      body: {
+        apiUrl: normalizeApiUrl(config.apiUrl),
+        token: config.token.trim(),
+        number: normalizedPhone,
+        body: messageText,
+        whatsappId: config.whatsappId
+      }
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    console.log("Mensagem enviada com sucesso via Supabase Edge Function!", data);
+    return { success: true };
+  } catch (err: any) {
+    console.warn("Supabase Edge Function 'send-whatsapp' falhou ou não está configurada. Usando envio direto como último recurso.", err);
+    return await sendWhaticketDirectly(normalizedPhone, messageText, config);
   }
 }
 
@@ -158,15 +229,21 @@ export async function sendWhaticketMessage(
   }
 
   const normalizedPhone = normalizePhoneNumber(toPhone);
+  const normalizedApiUrlVal = normalizeApiUrl(config.apiUrl);
+
+  // Dynamic base URL construction using current window.location protocol & host to guarantee same protocol hits
+  const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
+  const proxyUrl = `${baseUrl.replace(/\/$/, "")}/api/whatsapp/send`;
 
   try {
-    const response = await fetch("/api/whatsapp/send", {
+    console.log(`[PROXY] Enviando WhatsApp para ${normalizedPhone} via proxy local: ${proxyUrl}`);
+    const response = await fetch(proxyUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        apiUrl: config.apiUrl.trim(),
+        apiUrl: normalizedApiUrlVal,
         token: config.token.trim(),
         number: normalizedPhone,
         body: messageText,
@@ -175,14 +252,26 @@ export async function sendWhaticketMessage(
     });
 
     if (response.status === 404) {
-      console.warn("Rota de proxy '/api/whatsapp/send' não encontrada (hospedagem estática). Tentando envio direto do navegador...");
-      return await sendWhaticketDirectly(normalizedPhone, messageText, config);
+      console.warn(`Rota de proxy '${proxyUrl}' retornou 404 (provável hospedagem estática). Tentando envio via Supabase Edge Function...`);
+      return await sendWhaticketViaSupabaseFunction(normalizedPhone, messageText, config);
     }
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      const errorMsg = errorData.error || `Status ${response.status}`;
-      console.error("Erro no proxy da API Whaticket:", response.status, errorMsg);
+      const errorText = await response.text().catch(() => "");
+      let errorMsg = errorText;
+      try {
+        const errorData = JSON.parse(errorText);
+        errorMsg = errorData.error || errorText;
+      } catch (e) {}
+
+      console.error("Erro no proxy da API Whaticket (Não-200 OK):", {
+        status: response.status,
+        statusText: response.statusText,
+        url: response.url,
+        headers: Array.from(response.headers.entries()),
+        body: errorText || `Status ${response.status}`
+      });
+
       return { 
         success: false, 
         error: `A API do Whaticket (via servidor) retornou erro: ${errorMsg}` 
@@ -193,8 +282,8 @@ export async function sendWhaticketMessage(
     console.log("Mensagem enviada com sucesso via proxy Whaticket:", responseData);
     return { success: true };
   } catch (err: any) {
-    console.warn("Falha ao comunicar com o servidor proxy (hospedagem estática ou offline). Tentando envio direto do navegador...", err);
-    return await sendWhaticketDirectly(normalizedPhone, messageText, config);
+    console.warn("Falha ao comunicar com o servidor proxy (hospedagem estática ou offline). Tentando via Supabase Edge Function...", err);
+    return await sendWhaticketViaSupabaseFunction(normalizedPhone, messageText, config);
   }
 }
 
