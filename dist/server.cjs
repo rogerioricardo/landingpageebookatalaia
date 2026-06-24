@@ -56,7 +56,13 @@ async function startServer() {
       });
       const responseText = await response.text();
       if (!response.ok) {
-        console.error(`[PROXY] Erro da API Whaticket (status ${response.status}):`, responseText);
+        console.error(`[PROXY] Erro da API Whaticket (status ${response.status}):`, {
+          status: response.status,
+          statusText: response.statusText,
+          url: response.url,
+          headers: Array.from(response.headers.entries()),
+          body: responseText
+        });
         res.status(response.status).json({
           error: `A API respondeu com status ${response.status}: ${responseText || response.statusText}`
         });
