@@ -27,7 +27,7 @@ var import_path = __toESM(require("path"), 1);
 var import_vite = require("vite");
 async function startServer() {
   const app = (0, import_express.default)();
-  const PORT = 3e3;
+  const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3e3;
   app.use(import_express.default.json());
   app.post("/api/whatsapp/send", async (req, res) => {
     try {
