@@ -15,11 +15,9 @@ Gostaria de agradecer seu interesse em nosso *Guia Estratégico de Segurança Co
 
 Vi que você representa a empresa *{empresa}* e indicou que possuem cerca de *{clientes}* clientes ativos. 
 
-Nosso especialista em Segurança Colaborativa entrará em contato em breve para apresentar o modelo de negócio Atalaia e ajudar a expandir seu faturamento de forma recorrente.
+*Agora para receber seu ebook digite: "Quero meu Ebook"*
 
-Se preferir acelerar o atendimento, basta responder a essa mensagem!
-
-Abraços,
+Atenciosamente,
 *Equipe Atalaia Segurança Colaborativa*`;
 
 /**

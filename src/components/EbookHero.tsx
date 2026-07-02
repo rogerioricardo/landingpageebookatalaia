@@ -1,4 +1,4 @@
-import { BookOpen, ShieldCheck, Download, Users, TrendingUp, DollarSign } from "lucide-react";
+import { BookOpen, ShieldCheck, MessageSquare, Users, TrendingUp, DollarSign } from "lucide-react";
 import { motion } from "motion/react";
 
 interface EbookHeroProps {
@@ -47,8 +47,8 @@ export default function EbookHero({ onOpenDownload, onOpenLeads, leadCount = 0 }
                 onClick={onOpenDownload}
                 className="bg-black hover:bg-zinc-900 text-white font-extrabold py-4 px-8 rounded-2xl transition-all shadow-md flex items-center justify-center gap-2.5 cursor-pointer transform hover:-translate-y-0.5 active:translate-y-0"
               >
-                <Download size={18} />
-                Quero Baixar Meu Guia Grátis
+                <MessageSquare size={18} />
+                Quero Receber Meu Guia Grátis
               </button>
 
               <a
@@ -160,9 +160,9 @@ export default function EbookHero({ onOpenDownload, onOpenLeads, leadCount = 0 }
                         <div className="text-zinc-600">Alta Performance</div>
                       </div>
                       <div className="flex items-center gap-1 bg-zinc-800/50 hover:bg-zinc-800 px-2 py-1 rounded-lg border border-zinc-700/40 transition-colors">
-                        <Download size={10} className="text-emerald-400" />
+                        <MessageSquare size={10} className="text-emerald-400" />
                         <span className="text-[8px] font-bold text-white uppercase tracking-wider">
-                          Download
+                          WhatsApp
                         </span>
                       </div>
                     </div>
@@ -180,8 +180,8 @@ export default function EbookHero({ onOpenDownload, onOpenLeads, leadCount = 0 }
 
               {/* Click to download badge */}
               <div className="absolute -bottom-6 left-1/2 transform -translate-x-1/2 bg-white border border-zinc-200 text-zinc-900 text-xs py-1.5 px-4 rounded-full font-semibold shadow-lg flex items-center gap-1.5 whitespace-nowrap pointer-events-none group-hover:text-green-700 transition-colors animate-bounce">
-                <Download size={14} className="text-green-600 animate-pulse" />
-                Clique para Baixar
+                <MessageSquare size={14} className="text-green-600 animate-pulse" />
+                Clique para Receber
               </div>
 
             </div>

@@ -1,4 +1,4 @@
-import { Handshake, Shield, Smartphone, Globe, Target, ArrowRight, Download, CheckCircle2, Award } from "lucide-react";
+import { Handshake, Shield, Smartphone, Globe, Target, ArrowRight, MessageSquare, CheckCircle2, Award } from "lucide-react";
 import { motion } from "motion/react";
 
 interface PartnershipSectionProps {
@@ -120,7 +120,7 @@ export default function PartnershipSection({ onOpenDownload }: PartnershipSectio
                 onClick={onOpenDownload}
                 className="w-full bg-green-600 hover:bg-green-700 text-white font-extrabold py-3.5 px-6 rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
               >
-                <Download size={18} /> Baixar Ebook & Solicitar Parceria
+                <MessageSquare size={18} /> Receber Ebook & Solicitar Parceria
               </button>
             </div>
           </div>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ShieldCheck, Download, Users, TrendingUp, BarChart3, HelpCircle, ArrowRight, Eye, Sparkles, Calculator } from "lucide-react";
+import { ShieldCheck, MessageSquare, Users, TrendingUp, BarChart3, HelpCircle, ArrowRight, Eye, Sparkles, Calculator } from "lucide-react";
 import EbookHero from "./components/EbookHero";
 import ChapterExplorer from "./components/ChapterExplorer";
 import RevenueCalculator from "./components/RevenueCalculator";
@@ -150,7 +150,7 @@ export default function App() {
             </a>
           </nav>
 
-          <div className="flex items-center gap-2 md:gap-3">
+            <div className="flex items-center gap-2 md:gap-3">
             <a
               href="#revenue-calculator"
               onClick={(e) => {
@@ -167,7 +167,7 @@ export default function App() {
               onClick={() => setIsDownloadOpen(true)}
               className="bg-green-600 hover:bg-green-700 text-black font-bold text-xs md:text-sm py-2 px-4 rounded-xl transition-all shadow-sm flex items-center gap-1.5 cursor-pointer shrink-0"
             >
-              <Download size={14} /> Baixar Grátis
+              <MessageSquare size={14} /> Receber Grátis
             </button>
           </div>
         </div>
@@ -257,7 +257,7 @@ export default function App() {
                 onClick={() => setIsDownloadOpen(true)}
                 className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white font-extrabold py-4 px-10 rounded-2xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer transform hover:-translate-y-0.5"
               >
-                <Download size={18} /> Baixar Ebook Grátis Agora
+                <MessageSquare size={18} /> Receber Ebook no WhatsApp
               </button>
               
               <a
